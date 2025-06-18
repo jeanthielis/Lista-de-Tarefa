@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Tarefas Avançada</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.1/themes/base/jquery-ui.css">
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --card-bg: #ffffff;
+            --border-color: #dee2e6;
+        }
+        
+        .dark-mode {
+            --bg-color: #1a1a1a;
+            --text-color: #f8f9fa;
+            --card-bg: #2d2d2d;
+            --border-color: #444;
+        }
+        
+        body {
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border-color: var(--border-color);
+        }
+        
+        .list-group-item {
+            background-color: var(--card-bg);
+            border-color: var(--border-color);
+        }
+        
+        .task-item { 
+            cursor: pointer; 
+            transition: all 0.3s;
+            padding: 12px;
+            min-height: 50px;
+        }
+        
+        .task-not-started { border-left: 5px solid #dc3545 !important; }
+        .task-in-progress { border-left: 5px solid #ffc107 !important; }
+        .task-completed { border-left: 5px solid #28a745 !important; }
+        
+        .progress { height: 20px; margin-bottom: 20px; }
+        
+        .task-date { 
+            font-size: 0.8rem; 
+            color: #6c757d;
+        }
+        
+        .btn-status { 
+            width: 32px; 
+            height: 32px;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Mobile-First Adjustments */
+        @media (max-width: 576px) {
+            body { padding: 10px; }
+            .btn-status {
+                width: 28px;
+                height: 28px;
+                font-size: 0.8rem;
+            }
+            .task-item {
+                padding: 10px;
+            }
+            .task-date {
+                font-size: 0.7rem;
+            }
+        }
+        
+        /* Drag & Drop Styles */
+        .ui-sortable-placeholder {
+            visibility: visible !important;
+            background-color: rgba(0,0,0,0.1);
+            border: 1px dashed #666;
+        }
+        
+        .dark-mode .ui-sortable-placeholder {
+            background-color: rgba(255,255,255,0.1);
+            border: 1px dashed #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="text-center mb-0">📝 Lista de Tarefas</h1>
+            <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-moon"></i>
+            </button>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <form id="taskForm">
+                    <div class="input-group">
+                        <input type="text" id="taskInput" class="form-control" placeholder="Adicionar nova tarefa..." required>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Adicionar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="progress">
+            <div id="progressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+        </div>
+
+        <ul class="nav nav-tabs mb-3" id="taskTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button">A Fazer</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed" type="button">Concluídas</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="taskTabsContent">
+            <div class="tab-pane fade show active" id="pending" role="tabpanel">
+                <ul id="pendingTasks" class="list-group ui-sortable"></ul>
+            </div>
+            <div class="tab-pane fade" id="completed" role="tabpanel">
+                <ul id="completedTasks" class="list-group"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.1/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // Verifica modo noturno no carregamento
+            if (localStorage.getItem("darkMode") === "true") {
+                $("body").addClass("dark-mode");
+                $("#darkModeToggle").html('<i class="fas fa-sun"></i>');
+            }
+            
+            // Formatação de data
+            function formatDate(date) {
+                if (!date) return 'Não informada';
+                const d = new Date(date);
+                const day = d.getDate().toString().padStart(2, '0');
+                const month = (d.getMonth() + 1).toString().padStart(2, '0');
+                const year = d.getFullYear();
+                const hours = d.getHours().toString().padStart(2, '0');
+                const minutes = d.getMinutes().toString().padStart(2, '0');
+                return `${day}/${month}/${year} ${hours}:${minutes}`;
+            }
+
+            // Carrega tarefas
+            loadTasks();
+
+            // Adiciona nova tarefa
+            $('#taskForm').submit(function(e) {
+                e.preventDefault();
+                const taskText = $('#taskInput').val().trim();
+                if (taskText) {
+                    addTask(taskText);
+                    $('#taskInput').val('');
+                }
+            });
+
+            function addTask(text) {
+                const taskId = Date.now();
+                const creationDate = new Date().toISOString();
+                
+                const task = { 
+                    id: taskId, 
+                    text: text, 
+                    status: 'not-started',
+                    creationDate: creationDate,
+                    startDate: null,
+                    completionDate: null,
+                    order: JSON.parse(localStorage.getItem('tasks'))?.length || 0
+                };
+                
+                let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                tasks.push(task);
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                
+                renderTasks();
+            }
+
+            function loadTasks() {
+                renderTasks();
+                initSortable();
+            }
+
+            function renderTasks() {
+                const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                $('#pendingTasks').empty();
+                $('#completedTasks').empty();
+                
+                let completedCount = 0;
+                
+                // Ordena tarefas: em andamento primeiro, depois não iniciadas
+                const sortedTasks = [...tasks].sort((a, b) => {
+                    // Mantém a ordem manual para tarefas não concluídas
+                    if (a.status !== 'completed' && b.status !== 'completed') {
+                        return a.order - b.order;
+                    }
+                    if (a.status === 'in-progress' && b.status !== 'in-progress') return -1;
+                    if (a.status !== 'in-progress' && b.status === 'in-progress') return 1;
+                    return 0;
+                });
+                
+                sortedTasks.forEach(task => {
+                    const creationDate = formatDate(task.creationDate);
+                    const startDate = formatDate(task.startDate);
+                    const completionDate = formatDate(task.completionDate);
+                    
+                    // Determina a classe de status
+                    let statusClass = '';
+                    if (task.status === 'in-progress') statusClass = 'task-in-progress';
+                    else if (task.status === 'completed') statusClass = 'task-completed';
+                    else statusClass = 'task-not-started';
+                    
+                    const listItem = $(`
+                        <li class="list-group-item d-flex justify-content-between align-items-center task-item ${statusClass}" data-id="${task.id}">
+                            <div class="flex-grow-1">
+                                ${task.text}
+                                <div class="task-date">
+                                    Criada em: ${creationDate}<br>
+                                    ${task.startDate ? 'Iniciada em: ' + startDate + '<br>' : ''}
+                                    ${task.completionDate ? 'Concluída em: ' + completionDate : ''}
+                                </div>
+                            </div>
+                            <div class="btn-group">
+                                ${task.status === 'not-started' ? 
+                                    `<button class="btn btn-sm btn-warning btn-status start-btn">
+                                        <i class="fas fa-play"></i>
+                                    </button>` : ''}
+                                ${task.status === 'in-progress' ? 
+                                    `<button class="btn btn-sm btn-success btn-status complete-btn">
+                                        <i class="fas fa-check"></i>
+                                    </button>` : ''}
+                                <button class="btn btn-sm btn-danger btn-status delete-btn">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </li>
+                    `);
+                    
+                    if (task.status === 'completed') {
+                        $('#completedTasks').append(listItem);
+                        completedCount++;
+                    } else {
+                        $('#pendingTasks').append(listItem);
+                    }
+                });
+                
+                updateProgressBar(tasks.length, completedCount);
+                initSortable();
+            }
+
+            // Inicializa arrastar e soltar
+            function initSortable() {
+                $("#pendingTasks").sortable({
+                    placeholder: "ui-sortable-placeholder",
+                    update: function(event, ui) {
+                        const taskIds = $("#pendingTasks").sortable("toArray", { attribute: "data-id" });
+                        let tasks = JSON.parse(localStorage.getItem('tasks'));
+                        
+                        tasks.forEach(task => {
+                            if (task.status !== 'completed') {
+                                task.order = taskIds.indexOf(task.id.toString());
+                            }
+                        });
+                        
+                        localStorage.setItem('tasks', JSON.stringify(tasks));
+                    }
+                }).disableSelection();
+            }
+
+            // Botão Iniciar
+            $(document).on('click', '.start-btn', function(e) {
+                e.stopPropagation();
+                const taskId = $(this).closest('li').data('id');
+                let tasks = JSON.parse(localStorage.getItem('tasks'));
+                
+                tasks = tasks.map(task => {
+                    if (task.id === taskId) {
+                        task.status = 'in-progress';
+                        task.startDate = new Date().toISOString();
+                    }
+                    return task;
+                });
+                
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                renderTasks();
+            });
+
+            // Botão Concluir
+            $(document).on('click', '.complete-btn', function(e) {
+                e.stopPropagation();
+                const taskId = $(this).closest('li').data('id');
+                let tasks = JSON.parse(localStorage.getItem('tasks'));
+                
+                tasks = tasks.map(task => {
+                    if (task.id === taskId) {
+                        task.status = 'completed';
+                        task.completionDate = new Date().toISOString();
+                    }
+                    return task;
+                });
+                
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                renderTasks();
+            });
+
+            // Botão Excluir
+            $(document).on('click', '.delete-btn', function(e) {
+                e.stopPropagation();
+                const taskId = $(this).closest('li').data('id');
+                let tasks = JSON.parse(localStorage.getItem('tasks'));
+                
+                tasks = tasks.filter(task => task.id !== taskId);
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                
+                renderTasks();
+            });
+
+            // Modo Noturno
+            $("#darkModeToggle").click(function() {
+                $("body").toggleClass("dark-mode");
+                const isDarkMode = $("body").hasClass("dark-mode");
+                localStorage.setItem("darkMode", isDarkMode);
+                
+                if (isDarkMode) {
+                    $(this).html('<i class="fas fa-sun"></i>');
+                } else {
+                    $(this).html('<i class="fas fa-moon"></i>');
+                }
+            });
+
+            // Edição por duplo clique
+            $(document).on('dblclick', '.task-item', function() {
+                const taskId = $(this).data('id');
+                const taskText = $(this).find('div').contents().first().text().trim();
+                
+                $(this).html(`
+                    <div class="w-100">
+                        <input type="text" class="form-control edit-input" value="${taskText}" data-id="${taskId}">
+                    </div>
+                `);
+                
+                $(this).find('.edit-input').trigger('focus');
+            });
+
+            // Salvar edição
+            $(document).on('keydown blur', '.edit-input', function(e) {
+                if (e.type === 'blur' || e.key === 'Enter') {
+                    const newText = $(this).val().trim();
+                    const taskId = $(this).data('id');
+                    
+                    if (newText) {
+                        let tasks = JSON.parse(localStorage.getItem('tasks'));
+                        tasks = tasks.map(task => {
+                            if (task.id == taskId) {
+                                task.text = newText;
+                            }
+                            return task;
+                        });
+                        
+                        localStorage.setItem('tasks', JSON.stringify(tasks));
+                        renderTasks();
+                    }
+                } else if (e.key === 'Escape') {
+                    renderTasks();
+                }
+            });
+
+            function updateProgressBar(totalTasks, completedTasks) {
+                if (totalTasks === 0) {
+                    $('#progressBar').css('width', '0%').text('0%');
+                } else {
+                    const progress = Math.round((completedTasks / totalTasks) * 100);
+                    $('#progressBar').css('width', `${progress}%`).text(`${progress}%`);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
