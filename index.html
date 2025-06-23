@@ -405,7 +405,7 @@
                 } else {
                     const progress = Math.round((completedTasks / totalTasks) * 100);
                     $('#progressBar').css('width', `${progress}%`).text(`${progress}%`);
-                    $('#total').text(totalTasks);
+                    $('#total').text(totalTasks - completedTasks);
                     $('#concluidas').text(completedTasks);
                 }
             }
