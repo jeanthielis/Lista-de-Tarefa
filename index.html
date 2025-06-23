@@ -123,7 +123,13 @@
 
         <ul class="nav nav-tabs mb-3" id="taskTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button">A Fazer</button>
+                <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button">
+                    A Fazer
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                        99+
+                        <span class="visually-hidden">unread messages</span>
+                    </span>
+                </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed" type="button">Concluídas</button>
@@ -393,6 +399,7 @@
                 } else {
                     const progress = Math.round((completedTasks / totalTasks) * 100);
                     $('#progressBar').css('width', `${progress}%`).text(`${progress}%`);
+                    $("#total").text(`${totalTasks}`);
                 }
             }
         });
